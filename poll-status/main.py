@@ -10,7 +10,7 @@ with open("secrets.json") as f:
 transit_url = "https://api.511.org/transit"
 key511 = secrets["key511"]
 
-def maybe_dump_minute_date(client, resource):
+def maybe_dump_minute_data(client, resource):
     dt = datetime.datetime.now()
     folder = f"data/{resource}/{dt.strftime('%Y-%m-%d')}"
     os.makedirs(folder, exist_ok=True)
@@ -32,6 +32,6 @@ def maybe_dump_minute_date(client, resource):
 
 while True:
     with httpx.Client() as client:
-        maybe_dump_minute_date(client, "VehicleMonitoring")
-        maybe_dump_minute_date(client, "StopMonitoring")
+        maybe_dump_minute_data(client, "VehicleMonitoring")
+        maybe_dump_minute_data(client, "StopMonitoring")
         time.sleep(1)
