@@ -19,11 +19,12 @@ def maybe_dump_minute_data(client, resource):
     if os.path.exists(path):
         return
     print(f"Fetching for {path}")
-    response = client.get(f"{transit_url}/{resource}?api_key={key511}&agency=CT&format=json")
     try:
+        response = client.get(f"{transit_url}/{resource}?api_key={key511}&agency=CT&format=json")
         response.raise_for_status()
-    except Exception as e:
+    except httpx.HTTPError as e:
         print(f"Error: {e}")
+        time.sleep(10)  # "Backoff"
         return
     data = json.loads(response.content.decode("utf-8-sig"))
     with open(path, "w") as f:
