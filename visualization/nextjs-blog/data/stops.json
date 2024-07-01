@@ -1,0 +1,117 @@
+{
+  "tamien": {
+    "stop_id": "tamien",
+    "stop_name": "Tamien",
+    "position": 0.0
+  },
+  "sj_diridon": {
+    "stop_id": "sj_diridon",
+    "stop_name": "San Jose Diridon",
+    "position": 0.03699833417326005
+  },
+  "santa_clara": {
+    "stop_id": "santa_clara",
+    "stop_name": "Santa Clara",
+    "position": 0.09006442891163424
+  },
+  "lawrence": {
+    "stop_id": "lawrence",
+    "stop_name": "Lawrence",
+    "position": 0.16522505461070058
+  },
+  "sunnyvale": {
+    "stop_id": "sunnyvale",
+    "stop_name": "Sunnyvale",
+    "position": 0.20592002351827754
+  },
+  "mountain_view": {
+    "stop_id": "mountain_view",
+    "stop_name": "Mountain View",
+    "position": 0.2609505182536634
+  },
+  "san_antonio": {
+    "stop_id": "san_antonio",
+    "stop_name": "San Antonio",
+    "position": 0.3006197717899796
+  },
+  "california_ave": {
+    "stop_id": "california_ave",
+    "stop_name": "California Avenue",
+    "position": 0.35092366630768024
+  },
+  "palo_alto": {
+    "stop_id": "palo_alto",
+    "stop_name": "Palo Alto",
+    "position": 0.3834499506945403
+  },
+  "menlo_park": {
+    "stop_id": "menlo_park",
+    "stop_name": "Menlo Park",
+    "position": 0.4092365501528278
+  },
+  "redwood_city": {
+    "stop_id": "redwood_city",
+    "stop_name": "Redwood City",
+    "position": 0.48071491648304926
+  },
+  "san_carlos": {
+    "stop_id": "san_carlos",
+    "stop_name": "San Carlos",
+    "position": 0.5252976188862503
+  },
+  "belmont": {
+    "stop_id": "belmont",
+    "stop_name": "Belmont",
+    "position": 0.5506169880217805
+  },
+  "hillsdale": {
+    "stop_id": "hillsdale",
+    "stop_name": "Hillsdale",
+    "position": 0.5931535911035049
+  },
+  "hayward_park": {
+    "stop_id": "hayward_park",
+    "stop_name": "Hayward Park",
+    "position": 0.6103554740947071
+  },
+  "san_mateo": {
+    "stop_id": "san_mateo",
+    "stop_name": "San Mateo",
+    "position": 0.6376450539596166
+  },
+  "burlingame": {
+    "stop_id": "burlingame",
+    "stop_name": "Burlingame",
+    "position": 0.6673178312293763
+  },
+  "place_MLBR": {
+    "stop_id": "place_MLBR",
+    "stop_name": "Millbrae",
+    "position": 0.7225011906535925
+  },
+  "san_bruno": {
+    "stop_id": "san_bruno",
+    "stop_name": "San Bruno",
+    "position": 0.7745260553631439
+  },
+  "south_sf": {
+    "stop_id": "south_sf",
+    "stop_name": "South San Francisco",
+    "position": 0.8134065895325916
+  },
+  "bayshore": {
+    "stop_id": "bayshore",
+    "stop_name": "Bayshore",
+    "position": 0.8986199017068097
+  },
+  "22nd_street": {
+    "stop_id": "22nd_street",
+    "stop_name": "22nd Street",
+    "position": 0.9677903112730005
+  },
+  "san_francisco": {
+    "stop_id": "san_francisco",
+    "stop_name": "San Francisco",
+    "position": 1.0
+  }
+}
