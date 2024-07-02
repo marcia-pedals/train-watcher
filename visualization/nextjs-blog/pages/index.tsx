@@ -183,16 +183,6 @@ const Visualization: FC<{
   const boundTop = 10;
   const boundBottom = height - 20;
 
-  if (trips.length === 0) {
-    return (
-      <svg width={width} height={height}>
-        <text x={boundLeft} y={boundTop + 10}>
-          No Trips Selected
-        </text>
-      </svg>
-    );
-  }
-
   const topStopPosition = stopsData[topStopId].position;
   const bottomStopPosition = stopsData[bottomStopId].position;
   const minPosition = Math.min(topStopPosition, bottomStopPosition);
@@ -447,6 +437,11 @@ export default function Home() {
     setRelativeTime(e.target.checked);
   };
 
+  const [showScheduledTime, setShowScheduledTime] = useState(true);
+  const handleShowScheduledTimeChange = (e) => {
+    setShowScheduledTime(e.target.checked);
+  };
+
   const [topStopId, setTopStopId] = useState("san_francisco");
   const [bottomStopId, setBottomStopId] = useState("tamien");
 
@@ -508,6 +503,9 @@ export default function Home() {
   };
 
   const tripsToShow = useMemo(() => {
+    if (!showScheduledTime) {
+      return [];
+    }
     const trips = tripsData.filter((trip) =>
       selectedTrips.includes(trip.trip_short_name)
     );
@@ -515,7 +513,7 @@ export default function Home() {
       return transformRelativeTime(trips);
     }
     return trips;
-  }, [relativeTime, selectedTrips]);
+  }, [relativeTime, selectedTrips, showScheduledTime]);
 
   const realtimeTripsToShow = useMemo(() => {
     return realtimeData
@@ -614,11 +612,19 @@ export default function Home() {
                 </option>
               ))}
             </select>
+            <div>
+              <label>Show Scheduled Time</label>
+              <input
+                type="checkbox"
+                value={showScheduledTime ? "on" : "off"}
+                onChange={handleShowScheduledTimeChange}
+              />
+            </div>
             <select
               multiple
               value={selectedServiceDates}
               onChange={handleSelectedServiceDatesChange}
-              style={{flexGrow: 1}}
+              style={{ flexGrow: 1 }}
             >
               {allServiceDates.map((serviceDate) => (
                 <option value={serviceDate}>{serviceDate}</option>
