@@ -77,11 +77,8 @@ const Visualization: FC<{
   height: number;
   trips: typeof tripsData;
   realtimeTrips: typeof realtimeData;
-  stops: {
-    stop_id: string;
-    position: number;
-    stop_name: string;
-  }[];
+  topStopId: string;
+  bottomStopId: string;
   hoverServiceDate: string | undefined;
   onHoverServiceDateChange: (serviceDate: string | undefined) => void;
   onMouseMove: (date: Date) => void;
@@ -89,7 +86,8 @@ const Visualization: FC<{
   width,
   height,
   trips,
-  stops,
+  topStopId,
+  bottomStopId,
   realtimeTrips,
   hoverServiceDate,
   onHoverServiceDateChange,
@@ -110,30 +108,73 @@ const Visualization: FC<{
     );
   }
 
+  const topStopPosition = stopsData[topStopId].position;
+  const bottomStopPosition = stopsData[bottomStopId].position;
+  const minPosition = Math.min(topStopPosition, bottomStopPosition);
+  const maxPosition = Math.max(topStopPosition, bottomStopPosition);
+  const yScale = d3
+    .scaleLinear()
+    .domain([topStopPosition, bottomStopPosition])
+    .range([boundTop, boundBottom]);
+
+  let minTime = 2 * 86400;
+  let maxTime = 0;
   const tripsForRange = [
     ...trips,
     ...realtimeTrips.map((trip) => trip.service_dates).flat(),
-  ].filter((trip) => trip.stop_times.length > 0);
-  const minTime = Math.min(
-    ...tripsForRange.map((trip) => trip.stop_times[0].sec)
-  );
-  const maxTime = Math.max(
-    ...tripsForRange.map(
-      (trip) => trip.stop_times[trip.stop_times.length - 1].sec
-    )
-  );
+  ];
+  tripsForRange.forEach((trip) => {
+    for (let i = 0; i < trip.stop_times.length - 1; i++) {
+      const a = trip.stop_times[i];
+      const b = trip.stop_times[i + 1];
 
-  const minPosition = Math.min(...stops.map((stop) => stop.position));
-  const maxPosition = Math.max(...stops.map((stop) => stop.position));
+      const xa = a.sec;
+      const ya = stopsData[a.stop_id].position;
+      const xb = b.sec;
+      const yb = stopsData[b.stop_id].position;
+
+      const y1 = ya < yb ? ya : yb;
+      const x1 = ya < yb ? xa : xb;
+      const y2 = ya < yb ? yb : ya;
+      const x2 = ya < yb ? xb : xa;
+
+      // Now y1 < y2.
+
+      if (y1 > maxPosition || y2 < minPosition) {
+        // This segment is completely outside the y-range, so ignore it.
+        continue;
+      }
+
+      if (y1 < minPosition) {
+        // We know that the line (x1, y1) -> (x2, y2) intersects y = minPosition somewhere, and we
+        // want to include the intersection point in the range.
+        const xIntersection = x1 + (minPosition - y1) * (x2 - x1) / (y2 - y1);
+        minTime = Math.min(minTime, xIntersection);
+        maxTime = Math.max(maxTime, xIntersection);
+      } else {
+        // y1 is inside the y-range, so x1 itself should be included.
+        minTime = Math.min(minTime, x1);
+        maxTime = Math.max(maxTime, x1);
+      }
+
+      if (y2 > maxPosition) {
+        // We know that the line (x1, y1) -> (x2, y2) intersects y = maxPosition somewhere, and we
+        // want to include the intersection point in the range.
+        const xIntersection = x1 + (maxPosition - y1) * (x2 - x1) / (y2 - y1);
+        minTime = Math.min(minTime, xIntersection);
+        maxTime = Math.max(maxTime, xIntersection);
+      } else {
+        // y2 is inside the y-range, so x2 itself should be included.
+        minTime = Math.min(minTime, x2);
+        maxTime = Math.max(maxTime, x2);
+      }
+    }
+  });
 
   const xScale = d3
     .scaleTime()
     .domain([secondsToTime(minTime), secondsToTime(maxTime)])
     .range([boundLeft, boundRight]);
-  const yScale = d3
-    .scaleLinear()
-    .domain([minPosition, maxPosition])
-    .range([boundTop, boundBottom]);
 
   const imageY = 0.29;
   const allImageTimestamps = imagesData["south_of_san_antonio"];
@@ -198,21 +239,26 @@ const Visualization: FC<{
         })}
       </g>
       <g>
-        {stops.map((stop) => (
-          <>
-            <text x={0} y={yScale(stop.position) + 6}>
-              {stop.stop_name}
-            </text>
-            <line
-              x1={boundLeft}
-              x2={boundRight}
-              y1={yScale(stop.position)}
-              y2={yScale(stop.position)}
-              stroke="black"
-              strokeDasharray="5"
-            />
-          </>
-        ))}
+        {Object.values(stopsData).map((stop) => {
+          if (stop.position < minPosition || stop.position > maxPosition) {
+            return null;
+          }
+          return (
+            <>
+              <text x={0} y={yScale(stop.position) + 6}>
+                {stop.stop_name}
+              </text>
+              <line
+                x1={boundLeft}
+                x2={boundRight}
+                y1={yScale(stop.position)}
+                y2={yScale(stop.position)}
+                stroke="black"
+                strokeDasharray="5"
+              />
+            </>
+          );
+        })}
       </g>
       {trips.map((trip) => (
         <Trip
@@ -345,6 +391,21 @@ const transformRelativeTime = (trips: typeof tripsData): typeof tripsData => {
   }));
 };
 
+const StopSelect: FC<{
+  stopId: string;
+  onChange: (stopId: string) => void;
+}> = ({ stopId, onChange }) => {
+  return (
+    <select value={stopId} onChange={(e) => onChange(e.target.value)}>
+      {Object.values(stopsData)
+        .toReversed()
+        .map((stop) => (
+          <option value={stop.stop_id}>{stop.stop_name}</option>
+        ))}
+    </select>
+  );
+};
+
 export default function Home() {
   const [hoverServiceDate, setHoverServiceDate] = useState<string | undefined>(
     undefined
@@ -354,6 +415,9 @@ export default function Home() {
   const handleRelativeTimeChange = (e) => {
     setRelativeTime(e.target.checked);
   };
+
+  const [topStopId, setTopStopId] = useState("san_francisco");
+  const [bottomStopId, setBottomStopId] = useState("tamien");
 
   const [selectedTrips, setSelectedTrips] = useState<string[]>([]);
   const handleSelectedTripsChange = (e) => {
@@ -412,23 +476,10 @@ export default function Home() {
     "2024-06-28",
   ];
 
-  const selectedStops = [
-    "palo_alto",
-    "california_ave",
-    "san_antonio",
-    "mountain_view",
-    "sunnyvale",
-  ];
-
   const tripsToShow = useMemo(() => {
-    const trips = tripsData
-      .filter((trip) => selectedTrips.includes(trip.trip_short_name))
-      .map((trip) => ({
-        ...trip,
-        stop_times: trip.stop_times.filter((stop) =>
-          selectedStops.includes(stop.stop_id)
-        ),
-      }));
+    const trips = tripsData.filter((trip) =>
+      selectedTrips.includes(trip.trip_short_name)
+    );
     if (relativeTime) {
       return transformRelativeTime(trips);
     }
@@ -440,24 +491,11 @@ export default function Home() {
       .filter((trip) => selectedTrips.includes(trip.trip_short_name))
       .map((trip) => ({
         ...trip,
-        service_dates: trip.service_dates
-          .filter((serviceDate) =>
-            selectedServiceDates.includes(serviceDate.service_date)
-          )
-          .map((serviceDate) => ({
-            ...serviceDate,
-            stop_times: serviceDate.stop_times.filter((stop) =>
-              selectedStops.includes(stop.stop_id)
-            ),
-          })),
+        service_dates: trip.service_dates.filter((serviceDate) =>
+          selectedServiceDates.includes(serviceDate.service_date)
+        ),
       }));
   }, [selectedTrips]);
-
-  const stopsToShow = useMemo(() => {
-    return Object.values(stopsData).filter((stop) =>
-      selectedStops.includes(stop.stop_id)
-    );
-  }, [selectedStops]);
 
   return (
     <div className={styles.container}>
@@ -481,7 +519,8 @@ export default function Home() {
               height={650}
               trips={tripsToShow}
               realtimeTrips={realtimeTripsToShow}
-              stops={stopsToShow}
+              topStopId={topStopId}
+              bottomStopId={bottomStopId}
               hoverServiceDate={hoverServiceDate}
               onHoverServiceDateChange={setHoverServiceDate}
               onMouseMove={handleVisualizationMouseMove}
@@ -495,18 +534,31 @@ export default function Home() {
               onHoverServiceDateChange={setHoverServiceDate}
             />
           </div>
-          <div style={{ flexGrow: 1 }}>
-            <input
-              type="checkbox"
-              value={relativeTime ? "on" : "off"}
-              onChange={handleRelativeTimeChange}
-            />
-            <label>Relative Time</label>
+          <div
+            style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}
+          >
+            <div>
+              <label>Relative Time</label>
+              <input
+                type="checkbox"
+                value={relativeTime ? "on" : "off"}
+                onChange={handleRelativeTimeChange}
+              />
+            </div>
+            <div>
+              <label>Top</label>
+              <StopSelect stopId={topStopId} onChange={setTopStopId} />
+            </div>
+            <div>
+              <label>Bottom</label>
+              <StopSelect stopId={bottomStopId} onChange={setBottomStopId} />
+            </div>
+
             <select
               multiple
               value={selectedTrips}
               onChange={handleSelectedTripsChange}
-              style={{ width: "100%", height: "100%" }}
+              style={{ flexGrow: 1 }}
             >
               {tripsData.map((trip) => (
                 <option value={trip.trip_short_name}>
