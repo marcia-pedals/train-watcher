@@ -12,6 +12,17 @@ import stopsData from "../data/stops.json";
 import tripsData from "../data/trips.json";
 import realtimeData from "../data/realtime.json";
 
+const allServiceDates = _(
+  realtimeData
+    .map((trip) =>
+      trip.service_dates.map((serviceDate) => serviceDate.service_date)
+    )
+    .flat()
+)
+  .uniq()
+  .sort()
+  .value();
+
 const secondsToTime = (seconds) => {
   const base = new Date("2024-06-17T00:00:00");
   base.setSeconds(base.getSeconds() + seconds);
@@ -482,19 +493,19 @@ export default function Home() {
     setImgSrcs(result);
   };
 
-  const selectedServiceDates = [
-    "2024-06-17",
-    "2024-06-18",
-    "2024-06-19",
-    "2024-06-20",
-    "2024-06-21",
-
-    "2024-06-24",
-    "2024-06-25",
-    "2024-06-26",
-    "2024-06-27",
-    "2024-06-28",
-  ];
+  const [selectedServiceDates, setSelectedServiceDates] = useState<string[]>(
+    []
+  );
+  const handleSelectedServiceDatesChange = (e) => {
+    const options = e.target.options;
+    const selectedServiceDates = [];
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].selected) {
+        selectedServiceDates.push(options[i].value);
+      }
+    }
+    setSelectedServiceDates(selectedServiceDates);
+  };
 
   const tripsToShow = useMemo(() => {
     const trips = tripsData.filter((trip) =>
@@ -515,7 +526,7 @@ export default function Home() {
           selectedServiceDates.includes(serviceDate.service_date)
         ),
       }));
-  }, [selectedTrips]);
+  }, [selectedTrips, selectedServiceDates]);
 
   const timeRange = getTimeRangeForTrips(
     stopsData[topStopId].position,
@@ -595,12 +606,22 @@ export default function Home() {
               multiple
               value={selectedTrips}
               onChange={handleSelectedTripsChange}
-              style={{ flexGrow: 1 }}
+              style={{ flexGrow: 4 }}
             >
               {tripsData.map((trip) => (
                 <option value={trip.trip_short_name}>
                   {tripDescription(trip)}
                 </option>
+              ))}
+            </select>
+            <select
+              multiple
+              value={selectedServiceDates}
+              onChange={handleSelectedServiceDatesChange}
+              style={{flexGrow: 1}}
+            >
+              {allServiceDates.map((serviceDate) => (
+                <option value={serviceDate}>{serviceDate}</option>
               ))}
             </select>
           </div>
