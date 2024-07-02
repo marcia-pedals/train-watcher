@@ -72,11 +72,84 @@ const Trip: FC<{
   );
 };
 
+interface TimeRange {
+  start: number; // seconds
+  end: number; // seconds
+}
+
+interface StopTime {
+  stop_id: string;
+  sec: number;
+}
+
+interface Trip {
+  stop_times: StopTime[];
+}
+
+function getTimeRangeForTrips(
+  positionA: number,
+  positionB: number,
+  trips: Trip[]
+): TimeRange {
+  const minPosition = Math.min(positionA, positionB);
+  const maxPosition = Math.max(positionA, positionB);
+  const result = { start: 2 * 86400, end: 0 };
+  trips.forEach((trip) => {
+    for (let i = 0; i < trip.stop_times.length - 1; i++) {
+      const a = trip.stop_times[i];
+      const b = trip.stop_times[i + 1];
+
+      const xa = a.sec;
+      const ya = stopsData[a.stop_id].position;
+      const xb = b.sec;
+      const yb = stopsData[b.stop_id].position;
+
+      const y1 = ya < yb ? ya : yb;
+      const x1 = ya < yb ? xa : xb;
+      const y2 = ya < yb ? yb : ya;
+      const x2 = ya < yb ? xb : xa;
+
+      // Now y1 < y2.
+
+      if (y1 > maxPosition || y2 < minPosition) {
+        // This segment is completely outside the y-range, so ignore it.
+        continue;
+      }
+
+      if (y1 < minPosition) {
+        // We know that the line (x1, y1) -> (x2, y2) intersects y = minPosition somewhere, and we
+        // want to include the intersection point in the range.
+        const xIntersection = x1 + ((minPosition - y1) * (x2 - x1)) / (y2 - y1);
+        result.start = Math.min(result.start, xIntersection);
+        result.end = Math.max(result.end, xIntersection);
+      } else {
+        // y1 is inside the y-range, so x1 itself should be included.
+        result.start = Math.min(result.start, x1);
+        result.end = Math.max(result.end, x1);
+      }
+
+      if (y2 > maxPosition) {
+        // We know that the line (x1, y1) -> (x2, y2) intersects y = maxPosition somewhere, and we
+        // want to include the intersection point in the range.
+        const xIntersection = x1 + ((maxPosition - y1) * (x2 - x1)) / (y2 - y1);
+        result.start = Math.min(result.start, xIntersection);
+        result.end = Math.max(result.end, xIntersection);
+      } else {
+        // y2 is inside the y-range, so x2 itself should be included.
+        result.start = Math.min(result.start, x2);
+        result.end = Math.max(result.end, x2);
+      }
+    }
+  });
+  return result;
+}
+
 const Visualization: FC<{
   width: number;
   height: number;
   trips: typeof tripsData;
   realtimeTrips: typeof realtimeData;
+  timeRange: TimeRange;
   topStopId: string;
   bottomStopId: string;
   hoverServiceDate: string | undefined;
@@ -86,6 +159,7 @@ const Visualization: FC<{
   width,
   height,
   trips,
+  timeRange,
   topStopId,
   bottomStopId,
   realtimeTrips,
@@ -117,74 +191,20 @@ const Visualization: FC<{
     .domain([topStopPosition, bottomStopPosition])
     .range([boundTop, boundBottom]);
 
-  let minTime = 2 * 86400;
-  let maxTime = 0;
-  const tripsForRange = [
-    ...trips,
-    ...realtimeTrips.map((trip) => trip.service_dates).flat(),
-  ];
-  tripsForRange.forEach((trip) => {
-    for (let i = 0; i < trip.stop_times.length - 1; i++) {
-      const a = trip.stop_times[i];
-      const b = trip.stop_times[i + 1];
-
-      const xa = a.sec;
-      const ya = stopsData[a.stop_id].position;
-      const xb = b.sec;
-      const yb = stopsData[b.stop_id].position;
-
-      const y1 = ya < yb ? ya : yb;
-      const x1 = ya < yb ? xa : xb;
-      const y2 = ya < yb ? yb : ya;
-      const x2 = ya < yb ? xb : xa;
-
-      // Now y1 < y2.
-
-      if (y1 > maxPosition || y2 < minPosition) {
-        // This segment is completely outside the y-range, so ignore it.
-        continue;
-      }
-
-      if (y1 < minPosition) {
-        // We know that the line (x1, y1) -> (x2, y2) intersects y = minPosition somewhere, and we
-        // want to include the intersection point in the range.
-        const xIntersection = x1 + (minPosition - y1) * (x2 - x1) / (y2 - y1);
-        minTime = Math.min(minTime, xIntersection);
-        maxTime = Math.max(maxTime, xIntersection);
-      } else {
-        // y1 is inside the y-range, so x1 itself should be included.
-        minTime = Math.min(minTime, x1);
-        maxTime = Math.max(maxTime, x1);
-      }
-
-      if (y2 > maxPosition) {
-        // We know that the line (x1, y1) -> (x2, y2) intersects y = maxPosition somewhere, and we
-        // want to include the intersection point in the range.
-        const xIntersection = x1 + (maxPosition - y1) * (x2 - x1) / (y2 - y1);
-        minTime = Math.min(minTime, xIntersection);
-        maxTime = Math.max(maxTime, xIntersection);
-      } else {
-        // y2 is inside the y-range, so x2 itself should be included.
-        minTime = Math.min(minTime, x2);
-        maxTime = Math.max(maxTime, x2);
-      }
-    }
-  });
-
   const xScale = d3
     .scaleTime()
-    .domain([secondsToTime(minTime), secondsToTime(maxTime)])
+    .domain([secondsToTime(timeRange.start), secondsToTime(timeRange.end)])
     .range([boundLeft, boundRight]);
 
   const imageY = 0.29;
   const allImageTimestamps = imagesData["south_of_san_antonio"];
   const minImageIndex = _.sortedIndex(
     allImageTimestamps,
-    secondsToTime(minTime).valueOf() / 1000
+    secondsToTime(timeRange.start).valueOf() / 1000
   );
   const maxImageIndex = _.sortedIndex(
     allImageTimestamps,
-    secondsToTime(maxTime).valueOf() / 1000
+    secondsToTime(timeRange.end).valueOf() / 1000
   );
   const imageDates = allImageTimestamps
     .slice(minImageIndex, maxImageIndex)
@@ -497,6 +517,15 @@ export default function Home() {
       }));
   }, [selectedTrips]);
 
+  const timeRange = getTimeRangeForTrips(
+    stopsData[topStopId].position,
+    stopsData[bottomStopId].position,
+    [
+      ...tripsToShow,
+      ...realtimeTripsToShow.map((trip) => trip.service_dates).flat(),
+    ]
+  );
+
   return (
     <div className={styles.container}>
       <Head>
@@ -519,6 +548,7 @@ export default function Home() {
               height={650}
               trips={tripsToShow}
               realtimeTrips={realtimeTripsToShow}
+              timeRange={timeRange}
               topStopId={topStopId}
               bottomStopId={bottomStopId}
               hoverServiceDate={hoverServiceDate}
@@ -553,7 +583,14 @@ export default function Home() {
               <label>Bottom</label>
               <StopSelect stopId={bottomStopId} onChange={setBottomStopId} />
             </div>
-
+            <div>
+              <label>Start</label>
+              <input value={timeToString(secondsToTime(timeRange.start))} />
+            </div>
+            <div>
+              <label>End</label>
+              <input value={timeToString(secondsToTime(timeRange.end))} />
+            </div>
             <select
               multiple
               value={selectedTrips}
