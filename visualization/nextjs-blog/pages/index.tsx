@@ -24,7 +24,7 @@ const allServiceDates = _(
   .value();
 
 const secondsToTime = (seconds) => {
-  const base = new Date("2024-06-17T00:00:00");
+  const base = new Date("2000-01-01T00:00:00");
   base.setSeconds(base.getSeconds() + seconds);
   return base;
 };
@@ -33,6 +33,20 @@ const timeToString = (time) => {
   const hh = time.getHours();
   const mm = time.getMinutes();
   return `${hh}:${mm < 10 ? "0" : ""}${mm}`;
+};
+
+const getDateTime = (date: string, time: Date): Date => {
+  const year = parseInt(date.slice(0, 4), 10);
+  const month = parseInt(date.slice(5, 7), 10) - 1;
+  const day = parseInt(date.slice(8, 10), 10);
+  return new Date(
+    year,
+    month,
+    day,
+    time.getHours(),
+    time.getMinutes(),
+    time.getSeconds()
+  );
 };
 
 const Trip: FC<{
@@ -104,7 +118,7 @@ function getTimeRangeForTrips(
 ): TimeRange {
   const minPosition = Math.min(positionA, positionB);
   const maxPosition = Math.max(positionA, positionB);
-  const result = { start: 2 * 86400, end: 0 };
+  const result = { start: 86400, end: 0 };
   trips.forEach((trip) => {
     for (let i = 0; i < trip.stop_times.length - 1; i++) {
       const a = trip.stop_times[i];
@@ -166,6 +180,7 @@ const Visualization: FC<{
   hoverServiceDate: string | undefined;
   onHoverServiceDateChange: (serviceDate: string | undefined) => void;
   onMouseMove: (date: Date) => void;
+  webcamDate: string | undefined;
 }> = ({
   width,
   height,
@@ -177,6 +192,7 @@ const Visualization: FC<{
   hoverServiceDate,
   onHoverServiceDateChange,
   onMouseMove,
+  webcamDate,
 }) => {
   const boundLeft = 150;
   const boundRight = width - 10;
@@ -198,18 +214,24 @@ const Visualization: FC<{
     .range([boundLeft, boundRight]);
 
   const imageY = 0.29;
-  const allImageTimestamps = imagesData["south_of_san_antonio"];
-  const minImageIndex = _.sortedIndex(
-    allImageTimestamps,
-    secondsToTime(timeRange.start).valueOf() / 1000
-  );
-  const maxImageIndex = _.sortedIndex(
-    allImageTimestamps,
-    secondsToTime(timeRange.end).valueOf() / 1000
-  );
-  const imageDates = allImageTimestamps
-    .slice(minImageIndex, maxImageIndex)
-    .map((ts) => new Date(ts * 1000));
+  const imageDates = useMemo(() => {
+    if (webcamDate == undefined) {
+      return [];
+    }
+
+    const allImageTimestamps = imagesData["south_of_san_antonio"];
+    const minImageIndex = _.sortedIndex(
+      allImageTimestamps,
+      getDateTime(webcamDate, secondsToTime(timeRange.start)).valueOf() / 1000
+    );
+    const maxImageIndex = _.sortedIndex(
+      allImageTimestamps,
+      getDateTime(webcamDate, secondsToTime(timeRange.end)).valueOf() / 1000
+    );
+    return allImageTimestamps
+      .slice(minImageIndex, maxImageIndex)
+      .map((ts) => getDateTime("2000-01-01", new Date(ts * 1000)));
+  }, [webcamDate, timeRange]);
 
   const stopCircleR = 5;
 
@@ -457,8 +479,32 @@ export default function Home() {
     setSelectedTrips(selectedTrips);
   };
 
+  const [selectedServiceDates, setSelectedServiceDates] = useState<string[]>(
+    []
+  );
+  const handleSelectedServiceDatesChange = (e) => {
+    const options = e.target.options;
+    const selectedServiceDates = [];
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].selected) {
+        selectedServiceDates.push(options[i].value);
+      }
+    }
+    setSelectedServiceDates(selectedServiceDates);
+  };
+
+  const webcamDate: string | undefined =
+    selectedServiceDates.length > 0 ? selectedServiceDates[0] : undefined;
+
   const [imgSrcs, setImgSrcs] = useState<string[]>([]);
   const handleVisualizationMouseMove = (date: Date) => {
+    if (webcamDate == undefined) {
+      setImgSrcs([]);
+      return;
+    }
+
+    date = getDateTime(webcamDate, date);
+
     const imageTimestamps = imagesData["south_of_san_antonio"];
     const timestamp = date.valueOf() / 1000;
     const imageIndex = _.sortedIndex(imageTimestamps, timestamp);
@@ -486,20 +532,6 @@ export default function Home() {
       );
     }
     setImgSrcs(result);
-  };
-
-  const [selectedServiceDates, setSelectedServiceDates] = useState<string[]>(
-    []
-  );
-  const handleSelectedServiceDatesChange = (e) => {
-    const options = e.target.options;
-    const selectedServiceDates = [];
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) {
-        selectedServiceDates.push(options[i].value);
-      }
-    }
-    setSelectedServiceDates(selectedServiceDates);
   };
 
   const tripsToShow = useMemo(() => {
@@ -563,6 +595,7 @@ export default function Home() {
               hoverServiceDate={hoverServiceDate}
               onHoverServiceDateChange={setHoverServiceDate}
               onMouseMove={handleVisualizationMouseMove}
+              webcamDate={webcamDate}
             />
             <ServiceDateBar
               width={1000}
