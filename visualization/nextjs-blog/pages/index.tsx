@@ -253,7 +253,7 @@ const Visualization: FC<{
       .map((ts) => getDateTime("2000-01-01", new Date(ts * 1000)));
   }, [webcamDate, timeRange]);
 
-  const stopCircleR = 5;
+  const stopCircleR = 2;
 
   const realtimeTripOpacity = (serviceDate: string): number => {
     if (hoverServiceDate === undefined) {
@@ -335,20 +335,38 @@ const Visualization: FC<{
       ))}
       {realtimeTrips.map((realtimeTrip) =>
         realtimeTrip.service_dates.map((serviceDate) => (
-          <g
-            onMouseEnter={() =>
-              onHoverServiceDateChange(serviceDate.service_date)
-            }
-            onMouseLeave={() => onHoverServiceDateChange(undefined)}
-          >
-            <Trip
-              stopTimes={serviceDate.stop_times}
-              xScale={xScale}
-              yScale={yScale}
-              color="red"
-              opacity={realtimeTripOpacity(serviceDate.service_date)}
-              stopCircleR={stopCircleR}
-            />
+          <g>
+            <g>
+              <Trip
+                stopTimes={serviceDate.stop_times}
+                xScale={xScale}
+                yScale={yScale}
+                color="red"
+                opacity={realtimeTripOpacity(serviceDate.service_date)}
+                stopCircleR={stopCircleR}
+              />
+            </g>
+            <g>
+              {serviceDate.positions.map((position, i) => {
+                return (
+                  <>
+                    <circle
+                      cx={xScale(secondsToTime(position.sec))}
+                      cy={yScale(position.position)}
+                      r={2}
+                      fill="green"
+                    />
+                    {i > 0 && <line
+                      x1={xScale(secondsToTime(serviceDate.positions[i - 1].sec))}
+                      x2={xScale(secondsToTime(position.sec))}
+                      y1={yScale(serviceDate.positions[i - 1].position)}
+                      y2={yScale(position.position)}
+                      stroke="green"
+                    />}
+                  </>
+                );
+              })}
+            </g>
           </g>
         ))
       )}
