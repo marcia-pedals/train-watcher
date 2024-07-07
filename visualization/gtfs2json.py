@@ -58,7 +58,14 @@ def main():
         stop = stops[stops_ancestor[stop_time["stop_id"]]]
         stops_result[stop["stop_id"]] = {
             "stop_id": stop["stop_id"],
-            "stop_name": stop["stop_name"].replace("Caltrain Station", "").strip(),
+            "stop_name": (
+                stop["stop_name"]
+                    .replace("Caltrain Station", "")
+                    .replace("San Francisco", "SF")
+                    .replace("California Avenue", "Cali Ave")
+                    .replace("San Jose Diridon", "SJ")
+                    .strip()
+            ),
             "position": float(stop_time["shape_dist_traveled"]) / float(stop_times[trip_id_for_stops][-1]["shape_dist_traveled"]),
         }
     with open(os.path.join(args.out_dir, "stops.json"), "w") as f:

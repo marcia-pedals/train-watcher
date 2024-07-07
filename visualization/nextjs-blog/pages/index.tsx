@@ -1,5 +1,4 @@
 import Head from "next/head";
-import styles from "../styles/Home.module.css";
 
 import * as d3 from "d3";
 
@@ -11,6 +10,21 @@ import imagesData from "../data/images.json";
 import stopsData from "../data/stops.json";
 import tripsData from "../data/trips.json";
 import realtimeData from "../data/realtime.json";
+import {
+  Box,
+  Button,
+  Checkbox,
+  Chip,
+  Container,
+  createTheme,
+  CssBaseline,
+  FormControlLabel,
+  FormGroup,
+  Stack,
+  ThemeProvider,
+  Typography,
+} from "@mui/material";
+import { on } from "events";
 
 const allServiceDates = _(
   realtimeData
@@ -194,7 +208,7 @@ const Visualization: FC<{
   onMouseMove,
   webcamDate,
 }) => {
-  const boundLeft = 150;
+  const boundLeft = 120;
   const boundRight = width - 10;
   const boundTop = 10;
   const boundBottom = height - 20;
@@ -415,13 +429,44 @@ const ServiceDateBar: FC<{
   );
 };
 
-const tripDescription = (trip) => {
+const tripDirection = (trip) => {
+  const origin = trip.stop_times[0];
+  const destination = trip.stop_times[trip.stop_times.length - 1];
+  return stopsData[origin.stop_id].position <
+    stopsData[destination.stop_id].position
+    ? "NB"
+    : "SB";
+};
+
+const tripType = (trip): "local" | "limited" | "bullet" => {
+  if (
+    trip.trip_short_name.startsWith("1") ||
+    trip.trip_short_name.startsWith("2")
+  ) {
+    return "local";
+  }
+  if (trip.trip_short_name.startsWith("7")) {
+    return "bullet";
+  }
+  return "limited";
+};
+
+const TripLabel = ({ trip }) => {
   const origin = trip.stop_times[0];
   const originName = stopsData[origin.stop_id].stop_name;
   const originTime = timeToString(secondsToTime(origin.sec));
-  const destination = trip.stop_times[trip.stop_times.length - 1];
-  const destinationName = stopsData[destination.stop_id].stop_name;
-  return `${trip.route_id} ${originTime} ${originName} -> ${destinationName}: ${trip.trip_short_name}`;
+  return (
+    <Box fontFamily="monospace" whiteSpace="pre">
+      <Chip
+        size="small"
+        label={trip.trip_short_name}
+        sx={{ fontFamily: "inherit" }}
+        color={tripType(trip)}
+      />{" "}
+      {originTime.length === 4 ? " " : ""}
+      {originTime} @ {originName}
+    </Box>
+  );
 };
 
 const transformRelativeTime = (trips: typeof tripsData): typeof tripsData => {
@@ -449,7 +494,198 @@ const StopSelect: FC<{
   );
 };
 
+const SmallCheckbox = (props) => (
+  <Checkbox size="small" sx={{ py: 0 }} {...props} />
+);
+
+const Facets: FC<{
+  options: string[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+}> = ({ options, selected, onChange }) => {
+  const handleClickAll = () => {
+    onChange([]);
+  };
+
+  const handleClickOption = (option) => {
+    if (selected.includes(option)) {
+      onChange(selected.filter((o) => o !== option));
+    } else {
+      onChange([...selected, option]);
+    }
+  };
+
+  return (
+    <FormGroup>
+      <FormControlLabel
+        label="All"
+        control={
+          <SmallCheckbox
+            checked={selected.length === 0}
+            onClick={handleClickAll}
+          />
+        }
+      />
+      {options.map((option) => (
+        <FormControlLabel
+          key={option}
+          label={option}
+          control={
+            <SmallCheckbox
+              checked={selected.includes(option)}
+              onClick={() => handleClickOption(option)}
+            />
+          }
+        />
+      ))}
+    </FormGroup>
+  );
+};
+
+const ROUTE_IDS = _(tripsData.map((trip) => trip.route_id))
+  .uniq()
+  .sort()
+  .value();
+
+const TRIPS_SORTED = _.sortBy(
+  tripsData,
+  tripDirection,
+  (trip) => trip.stop_times[0].sec
+);
+
+const TripSelect: FC<{
+  selectedTrips: string[];
+  onChange: (selectedTrips: string[]) => void;
+}> = ({ selectedTrips, onChange }) => {
+  const [directions, setDirections] = useState<string[]>([]);
+  const [routes, setRoutes] = useState<string[]>([]);
+  const [onlyShowSelected, setOnlyShowSelected] = useState(false);
+
+  const tripsFiltered = useMemo(() => {
+    return TRIPS_SORTED.filter(
+      (trip) =>
+        (directions.length === 0 || directions.includes(tripDirection(trip))) &&
+        (routes.length === 0 || routes.includes(trip.route_id)) &&
+        (!onlyShowSelected || selectedTrips.includes(trip.trip_short_name))
+    );
+  }, [directions, routes, selectedTrips, onlyShowSelected]);
+
+  const selectedNotVisibleCount = useMemo(() => {
+    return selectedTrips.filter(
+      (trip) =>
+        !tripsFiltered.map((trip) => trip.trip_short_name).includes(trip)
+    ).length;
+  }, [tripsFiltered, selectedTrips]);
+
+  const handleClickAll = () => {
+    onChange(
+      _.uniq([
+        ...tripsFiltered.map((trip) => trip.trip_short_name),
+        ...selectedTrips,
+      ])
+    );
+  };
+  const handleClickClear = () => {
+    onChange([]);
+  };
+
+  return (
+    <Box flex={4} overflow="hidden">
+      <Stack direction="row" height="100%">
+        <Stack spacing={4}>
+          <Box height="6px" />
+          <FormGroup>
+            <FormControlLabel
+              label="Seld"
+              control={
+                <SmallCheckbox
+                  checked={onlyShowSelected}
+                  onClick={() => setOnlyShowSelected(!onlyShowSelected)}
+                />
+              }
+            />
+          </FormGroup>
+          <Facets
+            options={["NB", "SB"]}
+            selected={directions}
+            onChange={setDirections}
+          />
+          <Facets options={ROUTE_IDS} selected={routes} onChange={setRoutes} />
+        </Stack>
+        <Stack flex={1}>
+          <Stack direction="row" alignItems="center">
+            <Box>
+              {selectedTrips.length}
+              {selectedNotVisibleCount > 0 && (
+                <>, {selectedNotVisibleCount} hidden</>
+              )}
+            </Box>
+            <Box flex={1} />
+            <Button onClick={handleClickAll}>All</Button>
+            <Button onClick={handleClickClear}>Clear</Button>
+          </Stack>
+          <Box overflow="auto">
+            <FormGroup>
+              {tripsFiltered.map((trip) => (
+                <FormControlLabel
+                  key={trip.trip_short_name}
+                  label={<TripLabel trip={trip} />}
+                  control={
+                    <SmallCheckbox
+                      checked={selectedTrips.includes(trip.trip_short_name)}
+                      onChange={(e) => {
+                        const newSelectedTrips = e.target.checked
+                          ? [...selectedTrips, trip.trip_short_name]
+                          : selectedTrips.filter(
+                              (t) => t !== trip.trip_short_name
+                            );
+                        onChange(newSelectedTrips);
+                      }}
+                    />
+                  }
+                />
+              ))}
+            </FormGroup>
+          </Box>
+        </Stack>
+      </Stack>
+      {/* <select
+        multiple
+        value={selectedTrips}
+        onChange={handleSelectedTripsChange}
+      >
+        {tripsData.map((trip) => (
+          <option value={trip.trip_short_name}>{tripDescription(trip)}</option>
+        ))}
+      </select> */}
+    </Box>
+  );
+};
+
 export default function Home() {
+  const theme = createTheme({
+    palette: {
+      local: {
+        main: "#c5c5c5",
+        light: "#c5c5c5",
+        dark: "#c5c5c5",
+        contrastText: "#000000",
+      },
+      limited: {
+        main: "#fcedc7",
+        light: "#fcedc7",
+        dark: "#fcedc7",
+        contrastText: "#000000",
+      },
+      bullet: {
+        main: "#e31837",
+        light: "#e31837",
+        dark: "#e31837",
+        contrastText: "#ffffff",
+      },
+    },
+  });
+
   const [hoverServiceDate, setHoverServiceDate] = useState<string | undefined>(
     undefined
   );
@@ -468,16 +704,6 @@ export default function Home() {
   const [bottomStopId, setBottomStopId] = useState("tamien");
 
   const [selectedTrips, setSelectedTrips] = useState<string[]>([]);
-  const handleSelectedTripsChange = (e) => {
-    const options = e.target.options;
-    const selectedTrips = [];
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) {
-        selectedTrips.push(options[i].value);
-      }
-    }
-    setSelectedTrips(selectedTrips);
-  };
 
   const [selectedServiceDates, setSelectedServiceDates] = useState<string[]>(
     []
@@ -568,13 +794,15 @@ export default function Home() {
   );
 
   return (
-    <div className={styles.container}>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+
       <Head>
         <title>Exciting Train Visualization</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main>
+      <Container maxWidth={false} sx={{ height: "100vh" }}>
         {imgSrcs.length > 0 && (
           <div style={{ position: "fixed", bottom: 0 }}>
             {imgSrcs.map((imgSrc) => (
@@ -582,10 +810,10 @@ export default function Home() {
             ))}
           </div>
         )}
-        <div style={{ display: "flex" }}>
-          <div style={{ display: "flex", flexDirection: "column" }}>
+        <Stack direction="row" spacing={1} height="100%">
+          <Stack height="100%">
             <Visualization
-              width={1000}
+              width={1100}
               height={650}
               trips={tripsToShow}
               realtimeTrips={realtimeTripsToShow}
@@ -605,10 +833,8 @@ export default function Home() {
               hoverServiceDate={hoverServiceDate}
               onHoverServiceDateChange={setHoverServiceDate}
             />
-          </div>
-          <div
-            style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}
-          >
+          </Stack>
+          <Stack flexGrow={1} height="100%">
             <div>
               <label>Relative Time</label>
               <input
@@ -633,18 +859,10 @@ export default function Home() {
               <label>End</label>
               <input value={timeToString(secondsToTime(timeRange.end))} />
             </div>
-            <select
-              multiple
-              value={selectedTrips}
-              onChange={handleSelectedTripsChange}
-              style={{ flexGrow: 4 }}
-            >
-              {tripsData.map((trip) => (
-                <option value={trip.trip_short_name}>
-                  {tripDescription(trip)}
-                </option>
-              ))}
-            </select>
+            <TripSelect
+              selectedTrips={selectedTrips}
+              onChange={setSelectedTrips}
+            />
             <div>
               <label>Show Scheduled Time</label>
               <input
@@ -663,10 +881,10 @@ export default function Home() {
                 <option value={serviceDate}>{serviceDate}</option>
               ))}
             </select>
-          </div>
-        </div>
-      </main>
-    </div>
+          </Stack>
+        </Stack>
+      </Container>
+    </ThemeProvider>
   );
 }
 
