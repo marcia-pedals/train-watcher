@@ -20,11 +20,17 @@ import {
   CssBaseline,
   FormControlLabel,
   FormGroup,
+  IconButton,
   Stack,
+  TextField,
   ThemeProvider,
-  Typography,
 } from "@mui/material";
-import { on } from "events";
+import {
+  KeyboardArrowLeft,
+  KeyboardDoubleArrowLeft,
+  KeyboardArrowRight,
+  KeyboardDoubleArrowRight,
+} from "@mui/icons-material";
 
 const allServiceDates = _(
   realtimeData
@@ -662,6 +668,66 @@ const TripSelect: FC<{
   );
 };
 
+const XAxisControl: FC<{
+  allDataTimeRange: TimeRange;
+  customTimeRange: TimeRange | undefined;
+  onChangeCustomTimeRange: (customTimeRange: TimeRange | undefined) => void;
+}> = ({ allDataTimeRange, customTimeRange, onChangeCustomTimeRange }) => {
+  const autoXAxis = customTimeRange == undefined;
+  const effectiveTimeRange = customTimeRange ?? allDataTimeRange;
+
+  const handleClickAuto = () => {
+    if (autoXAxis) {
+      onChangeCustomTimeRange(allDataTimeRange);
+    } else {
+      onChangeCustomTimeRange(undefined);
+    }
+  };
+
+  const bigShift = 3600;
+  const smallShift = 60;
+  const handleShift = (delta: number) => {
+    onChangeCustomTimeRange({
+      start: effectiveTimeRange.start + delta,
+      end: effectiveTimeRange.end + delta,
+    });
+  };
+
+  return (
+    <Stack alignItems="center" spacing={1}>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <IconButton size="small" onClick={() => handleShift(-bigShift)}>
+          <KeyboardDoubleArrowLeft />
+        </IconButton>
+        <IconButton size="small" onClick={() => handleShift(-smallShift)}>
+          <KeyboardArrowLeft />
+        </IconButton>
+        <TextField
+          size="small"
+          value={timeToString(secondsToTime(effectiveTimeRange.start))}
+        />
+        <Box>{" - "}</Box>
+        <TextField
+          size="small"
+          value={timeToString(secondsToTime(effectiveTimeRange.end))}
+        />
+        <IconButton size="small" onClick={() => handleShift(smallShift)}>
+          <KeyboardArrowRight />
+        </IconButton>
+        <IconButton size="small" onClick={() => handleShift(bigShift)}>
+          <KeyboardDoubleArrowRight />
+        </IconButton>
+      </Stack>
+      <FormControlLabel
+        label="Auto"
+        control={
+          <SmallCheckbox checked={autoXAxis} onClick={handleClickAuto} />
+        }
+      />
+    </Stack>
+  );
+};
+
 export default function Home() {
   const theme = createTheme({
     palette: {
@@ -718,6 +784,8 @@ export default function Home() {
     }
     setSelectedServiceDates(selectedServiceDates);
   };
+
+  const [autoXAxis, setAutoXAxis] = useState(true);
 
   const webcamDate: string | undefined =
     selectedServiceDates.length > 0 ? selectedServiceDates[0] : undefined;
@@ -784,7 +852,7 @@ export default function Home() {
       }));
   }, [selectedTrips, selectedServiceDates]);
 
-  const timeRange = getTimeRangeForTrips(
+  const allDataTimeRange = getTimeRangeForTrips(
     stopsData[topStopId].position,
     stopsData[bottomStopId].position,
     [
@@ -792,6 +860,10 @@ export default function Home() {
       ...realtimeTripsToShow.map((trip) => trip.service_dates).flat(),
     ]
   );
+  const [customTimeRange, setCustomTimeRange] = useState<
+    TimeRange | undefined
+  >();
+  const effectiveTimeRange = customTimeRange ?? allDataTimeRange;
 
   return (
     <ThemeProvider theme={theme}>
@@ -817,7 +889,7 @@ export default function Home() {
               height={650}
               trips={tripsToShow}
               realtimeTrips={realtimeTripsToShow}
-              timeRange={timeRange}
+              timeRange={effectiveTimeRange}
               topStopId={topStopId}
               bottomStopId={bottomStopId}
               hoverServiceDate={hoverServiceDate}
@@ -835,14 +907,14 @@ export default function Home() {
             />
           </Stack>
           <Stack flexGrow={1} height="100%">
-            <div>
+            {/* <div>
               <label>Relative Time</label>
               <input
                 type="checkbox"
                 value={relativeTime ? "on" : "off"}
                 onChange={handleRelativeTimeChange}
               />
-            </div>
+            </div> */}
             <div>
               <label>Top</label>
               <StopSelect stopId={topStopId} onChange={setTopStopId} />
@@ -851,14 +923,11 @@ export default function Home() {
               <label>Bottom</label>
               <StopSelect stopId={bottomStopId} onChange={setBottomStopId} />
             </div>
-            <div>
-              <label>Start</label>
-              <input value={timeToString(secondsToTime(timeRange.start))} />
-            </div>
-            <div>
-              <label>End</label>
-              <input value={timeToString(secondsToTime(timeRange.end))} />
-            </div>
+            <XAxisControl
+              allDataTimeRange={allDataTimeRange}
+              customTimeRange={customTimeRange}
+              onChangeCustomTimeRange={setCustomTimeRange}
+            />
             <TripSelect
               selectedTrips={selectedTrips}
               onChange={setSelectedTrips}
